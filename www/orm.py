@@ -16,18 +16,19 @@ def log(sql,args=()):
 
 @asyncio.coroutine
 def create_pool(loop,**kw):
-    logging.info('create database connection pool...')
+    logging.info('CREATE DATABASE connection pool...')
     global __pool   #全局变量，存储连接池
     __pool = yield from aiomysql.create_pool(
-        host=kw.get('host','localhost'),
-        port = kw.get('port',3306),
-        user = kw['user'],
-        password = kw['password'],
-        db = kw['db'],
-        charset= kw.get('charset','utf-8'),   # 默认编码格式：utf-8
-        autocommit=kw.get('autocommit','True'),  # 自动提交事务
-        maxsize=kw.get('maxsize',10),
-        minsize = kw.get('minsize',1)
+        host=kw.get('host', 'localhost'),
+        port=kw.get('port', 3306),
+        user=kw['user'],
+        password=kw['password'],
+        db=kw['db'],
+        charset=kw.get('charset', 'utf8'),   # 默认编码格式：utf-8
+        autocommit=kw.get('autocommit', True),  # 自动提交事务
+        maxsize=kw.get('maxsize', 10),
+        minsize=kw.get('minsize', 1),
+        loop = loop
     )
 
 @asyncio.coroutine
@@ -71,8 +72,8 @@ class ModelMetaclass(type):
         if name == 'Model':
             return  type.__new__(cls,name,bases,attrs)
         # 获取table名称
-        tableName = attrs.get('__table__',None) or name
-        logging.info('found model: %s (table: %s)' % (name,tableName))
+        tableName = attrs.get('__table__', None) or name
+        logging.info('found model: %s (table: %s)' % (name, tableName))
 
         # 获取所有的Field和主键名
         mappings = dict()
@@ -82,7 +83,7 @@ class ModelMetaclass(type):
             if isinstance(v,Field):
                 logging.info('found mapping: %s ==> %s' %(k,v))
                 mappings[k] = v
-                if v.primaryKey:
+                if v.primary_key:
                     if primaryKey:
                         raise RuntimeError('Duplicate primary key for field: %s' % k)
                     primaryKey = k
@@ -92,19 +93,19 @@ class ModelMetaclass(type):
             raise  RuntimeError('Primary key not found.')
         for k in mappings.keys():
             attrs.pop(k)
-        escaped_fileds = list(map(lambda f:  '`%s`' %f,fields))
-        attrs['__mappings__'] = mappings # 保存属性和列的映射关系
+        escaped_fields = list(map(lambda f: '`%s`' % f, fields))
+        attrs['__mappings__'] = mappings  # 保存属性和列的映射关系
         attrs['__table__'] = tableName
-        attrs['__primary_key__'] = primaryKey #主键属性名
-        attrs['__fields__'] = fields #除主键外的属性名
-        attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey,','.join(escaped_fileds),tableName)
-        attrs['__insert__'] = 'insert into `%s` (%s,`%s`) values (%s)' % \
-                              (tableName,','.join(escaped_fileds),primaryKey,create_args_string(len(escaped_fileds) +1))
-        attrs['__update__'] = 'update `%s` set %s where `%s` = ?' % \
-                              (tableName,','.join(map(lambda  f:'`%s`=?' % (mappings.get(f).name or f),fields)),primaryKey)
-        attrs['__delete__'] = 'delete from `%s` where `%s` = ?' %(tableName,primaryKey)
-
-        return type.__new__(cls,name,bases,attrs)
+        attrs['__primary_key__'] = primaryKey  # 主键属性名
+        attrs['__fields__'] = fields  # 除主键外的属性名
+        # 构造默认的SELECT, INSERT, UPDATE和DELETE语句:
+        attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
+        attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (
+        tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
+        attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (
+        tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+        attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
+        return type.__new__(cls, name, bases, attrs)
 
 # 定义Model：所有ORM映射的基类
 # 继承dict，具备所有dict的功能，同时实现了特殊方法__getattr__()和__setattr__()，又可以引用普通字段
@@ -233,7 +234,7 @@ class BooleanField(Field):
     def __init__(self,name=None, default=False):
         super().__init__(name,'boolean',False,default)
 
-class IntergerField(Field):
+class IntegerField(Field):
     def __init__(self,name=None,primary_key=False,default=0):
         super().__init__(name,'bigint',primary_key,default)
 
