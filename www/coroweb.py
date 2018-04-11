@@ -41,28 +41,28 @@ def post(path):
 def get_required_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
-    for name,param in params.items():
-        if param.kind == inspect.Parameter.kEYWORD_ONLY and param.default == inspect.Parameter.empty:
+    for name, param in params.items():
+        if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
             args.append(name)
     return tuple(args)
 
 def get_named_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
-    for name,param in params.items():
+    for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
     return tuple(args)
 
 def has_named_kw_args(fn):
     params = inspect.signature(fn).parameters
-    for name,param in params.items():
+    for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             return True
 
 def has_var_kw_arg(fn):
     params = inspect.signature(fn).parameters
-    for name,param in params.items():
+    for name, param in params.items():
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             return True
 
@@ -70,15 +70,13 @@ def has_request_arg(fn):
     sig = inspect.signature(fn)
     params = sig.parameters
     found = False
-    for name,param in params.items():
+    for name, param in params.items():
         if name == 'request':
             found = True
             continue
-        if found and (param.kind != inspect.Parameter.VAR_POSITIONAL
-                      and param.kind != inspect.Parameter.KEYWORD_ONLY
-                      and param.kind != inspect.Parameter.VAR_KEYWORD ):
-            raise ValueError('request parameter must be the last named parameter in function: %s%s' % (fn.__name__,str(sig)))
-
+        if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
+            raise ValueError('request parameter must be the last named parameter in function: %s%s' % (fn.__name__, str(sig)))
+    return found
 
 # 封装一个URL处理函数
 class RequestHandler(object):
@@ -89,11 +87,11 @@ class RequestHandler(object):
     def __init__(self, app, fn):
         self._app = app
         self._func = fn
-        self._has_request_arg = has_request_arg
-        self._has_var_kw_arg = has_var_kw_arg
-        self._has_named_kw_args = has_named_kw_args
-        self._named_kw_args = get_named_kw_args
-        self._required_kw_args = get_required_kw_args
+        self._has_request_arg = has_request_arg(fn)
+        self._has_var_kw_arg = has_var_kw_arg(fn)
+        self._has_named_kw_args = has_named_kw_args(fn)
+        self._named_kw_args = get_named_kw_args(fn)
+        self._required_kw_args = get_required_kw_args(fn)
 
 
     @asyncio.coroutine
@@ -138,7 +136,7 @@ class RequestHandler(object):
                 #check named arg:
                 for k,v in request.match_info.items():
                     if k in kw:
-                        logging.warn('Duplicate arg name in named arg and kw args: %s') % w
+                        logging.warn('Duplicate arg name in named arg and kw args: %s' % k)
                     kw[k] = v
 
         if self._has_request_arg:
@@ -159,7 +157,7 @@ class RequestHandler(object):
 
 def add_static(app):
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)),'static')
-    app.route.add_static('/static/',path)
+    app.router.add_static('/static/',path)
     logging.info('add static %s => %s' % ('/static/',path))
 
 # 用来注册一个URL处理函数
@@ -174,8 +172,8 @@ def add_route(app,fn):
         fn = asyncio.coroutine(fn)
 
     logging.info('add route %s %s => %s (%s)' % (method,path,fn.__name__,','.join(inspect.signature(fn).parameters.keys())))
-
-    app.route.add_route(method,path,RequestHandler(app,fn))
+    app.router.add_route(method,path,RequestHandler(app,fn))
+    # app.route.add_route(method,path,RequestHandler(app,fn))
 
 # 自动把模块的所有符合条件的函数进行注册
 def add_routes(app,module_name):

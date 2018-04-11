@@ -32,6 +32,13 @@ def create_pool(loop,**kw):
     )
 
 @asyncio.coroutine
+def destory_pool():
+    global __pool
+    if __pool is not None :
+        __pool.close()
+        yield from __pool.wait_closed()
+
+@asyncio.coroutine
 def select(sql,args,size = None):
     log(sql,args)
     global __pool
@@ -68,6 +75,9 @@ def create_args_string(num):
 
 # 将Model的具体子类的映射信息读取出来
 class ModelMetaclass(type):
+
+    # __new__ 对象的创建，是一个静态方法。 先__new__，再__init__
+    # 类的生成调用顺序：__new__ > __init__ > __call__
     def __new__(cls,name,bases,attrs):
         if name == 'Model':
             return  type.__new__(cls,name,bases,attrs)
@@ -101,11 +111,13 @@ class ModelMetaclass(type):
         # 构造默认的SELECT, INSERT, UPDATE和DELETE语句:
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (
-        tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
+            tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
         attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (
-        tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+            tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
+
         return type.__new__(cls, name, bases, attrs)
+
 
 # 定义Model：所有ORM映射的基类
 # 继承dict，具备所有dict的功能，同时实现了特殊方法__getattr__()和__setattr__()，又可以引用普通字段
@@ -136,7 +148,7 @@ class Model(dict,metaclass=ModelMetaclass):
                 setattr(self,key,value)
         return value
 
-    # 添加class方法，让所有子类调用class方法   （类似于static方法）
+    # 添加class方法，让所有子类调用class方法（类似于static方法）
     @classmethod
     @asyncio.coroutine
     def find(cls,pk):
@@ -175,7 +187,7 @@ class Model(dict,metaclass=ModelMetaclass):
                 raise  ValueError('Invalid limit value: %s' % str(limit))
 
         rs = yield  from  select(' '.join(sql),args)
-        return [cls(**r) for r in rs]
+        return [cls(**r) for r in rs]  # rs是tuple，不能直接创建字典
 
     @classmethod
     @asyncio.coroutine
@@ -217,6 +229,7 @@ class Model(dict,metaclass=ModelMetaclass):
 
 
 class Field(object):
+    # __init__ 等于类的构造器  __del__ 等于类的析构函数
     def __init__(self,name,column_type,primary_key,default):
         self.name = name
         self.column_type = column_type

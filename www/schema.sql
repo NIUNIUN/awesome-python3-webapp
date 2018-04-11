@@ -39,6 +39,7 @@ CREATE TABLE comments(
   `user_name` VARCHAR(50) NOT NULL ,
   `user-image` VARCHAR(500) NOT NULL ,
   `content` MEDIUMTEXT NOT NULL ,
+   `created_at` real not null,
   key `idx_created_at` (`created_at`),
   PRIMARY KEY (`id`)
 )ENGINE = innodb DEFAULT CHARSET = utf8;
